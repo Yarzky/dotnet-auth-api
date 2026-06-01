@@ -82,4 +82,70 @@ public class AuthService : IAuthService
 
         return new AuthResponse<TokenResponseDto>(true, tokenResponse);
     }
+
+    public async Task<AuthResponse<TokenResponseDto>> RefreshTokenAsync(string token)
+    {
+        var refreshToken = await _refreshTokenRepository.GetByTokenAsync(token);
+
+        if (refreshToken == null)
+        {
+            return new AuthResponse<TokenResponseDto>(false, Error: new AuthError("REFRESH_TOKEN_INVALID", "Invalid refresh token."));
+        }
+
+        if (refreshToken.IsRevoked)
+        {
+            // Reuse detection: revoke all tokens for this user
+            await _refreshTokenRepository.RevokeAllForUserAsync(refreshToken.UserId);
+            await _refreshTokenRepository.SaveChangesAsync();
+            return new AuthResponse<TokenResponseDto>(false, Error: new AuthError("REFRESH_TOKEN_INVALID", "Token already used or revoked. Security breach suspected."));
+        }
+
+        if (refreshToken.IsExpired)
+        {
+            return new AuthResponse<TokenResponseDto>(false, Error: new AuthError("REFRESH_TOKEN_EXPIRED", "Refresh token has expired."));
+        }
+
+        var user = refreshToken.User;
+        if (!user.IsActive)
+        {
+            return new AuthResponse<TokenResponseDto>(false, Error: new AuthError("ACCOUNT_DISABLED", "User account has been deactivated."));
+        }
+
+        // Rotate token
+        var newRefreshTokenValue = _tokenService.GenerateRefreshToken();
+        var refreshTokenExpiryDays = double.Parse(_configuration["JwtSettings:RefreshTokenExpiryDays"] ?? "7");
+        
+        var newRefreshToken = new RefreshToken
+        {
+            Token = newRefreshTokenValue,
+            UserId = user.Id,
+            ExpiresAt = DateTime.UtcNow.AddDays(refreshTokenExpiryDays)
+        };
+
+        refreshToken.RevokedAt = DateTime.UtcNow;
+        refreshToken.ReplacedByToken = newRefreshTokenValue;
+
+        await _refreshTokenRepository.AddAsync(newRefreshToken);
+        _refreshTokenRepository.Update(refreshToken);
+        await _refreshTokenRepository.SaveChangesAsync();
+
+        var accessToken = _tokenService.GenerateAccessToken(user);
+        var expiresIn = int.Parse(_configuration["JwtSettings:AccessTokenExpiryMinutes"] ?? "15") * 60;
+
+        return new AuthResponse<TokenResponseDto>(true, new TokenResponseDto(accessToken, newRefreshTokenValue, expiresIn));
+    }
+
+    public async Task<bool> RevokeTokenAsync(string token)
+    {
+        var refreshToken = await _refreshTokenRepository.GetByTokenAsync(token);
+
+        if (refreshToken == null || !refreshToken.IsActive)
+        {
+            return false;
+        }
+
+        refreshToken.RevokedAt = DateTime.UtcNow;
+        _refreshTokenRepository.Update(refreshToken);
+        return await _refreshTokenRepository.SaveChangesAsync();
+    }
 }

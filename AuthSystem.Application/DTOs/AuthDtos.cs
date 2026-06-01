@@ -12,6 +12,10 @@ public record LoginDto(
     string Password
 );
 
+public record RefreshTokenDto(
+    string RefreshToken
+);
+
 public record TokenResponseDto(
     string AccessToken,
     string RefreshToken,

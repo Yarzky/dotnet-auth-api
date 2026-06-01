@@ -31,6 +31,20 @@ public class RefreshTokenRepository : IRefreshTokenRepository
         _context.RefreshTokens.Update(refreshToken);
     }
 
+    public async Task RevokeAllForUserAsync(Guid userId)
+    {
+        var tokens = await _context.RefreshTokens
+            .Where(rt => rt.UserId == userId && rt.RevokedAt == null)
+            .ToListAsync();
+        
+        foreach (var token in tokens)
+        {
+            token.RevokedAt = DateTime.UtcNow;
+        }
+
+        _context.RefreshTokens.UpdateRange(tokens);
+    }
+
     public async Task DeleteExpiredTokensAsync()
     {
         var expiredTokens = _context.RefreshTokens
