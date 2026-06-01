@@ -32,6 +32,21 @@ public record UserDto(
     DateTime CreatedAt
 );
 
+public record UpdateUserDto(
+    string FirstName,
+    string LastName
+);
+
+public record ChangePasswordDto(
+    string CurrentPassword,
+    string NewPassword,
+    string ConfirmNewPassword
+);
+
+public record UpdateRoleDto(
+    string Role
+);
+
 public record AuthResponse<T>(
     bool Success,
     T? Data = default,
