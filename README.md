@@ -34,7 +34,12 @@ A standalone authentication and authorization service built with ASP.NET Core 8.
    ```
 
 2. **Set up environment variables**:
-   Create a `.env` file in the root directory (already provided in this setup):
+   Copy the example environment file and update the values:
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Ensure the following variables are set in your `.env` file:
    ```env
    POSTGRES_USER=postgres
    POSTGRES_PASSWORD=postgres
